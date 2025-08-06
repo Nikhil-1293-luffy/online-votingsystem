@@ -1,13 +1,16 @@
-from datetime import datetime
-import ast
 import os
+import json
+from datetime import datetime
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+
+# --- Data Model Classes (Candidate, Voter) ---
 
 class Candidate:
     def __init__(self, candidate_id, name, position):
         self.candidate_id = candidate_id
         self.name = name
         self.position = position
-        self.voters = set()
         self.vote_count = 0
 
     def to_dict(self):
@@ -15,15 +18,13 @@ class Candidate:
             "candidate_id": self.candidate_id,
             "name": self.name,
             "position": self.position,
-            "vote_count": self.vote_count,
-            "voters": list(self.voters)
+            "vote_count": self.vote_count
         }
 
     @staticmethod
     def from_dict(data):
         c = Candidate(data["candidate_id"], data["name"], data["position"])
-        c.vote_count = data["vote_count"]
-        c.voters = set(data["voters"])
+        c.vote_count = data.get("vote_count", 0)
         return c
 
 class Voter:
@@ -42,117 +43,123 @@ class Voter:
     @staticmethod
     def from_dict(data):
         v = Voter(data["voter_id"], data["name"])
-        v.voted_positions = set(data["voted_positions"])
+        v.voted_positions = set(data.get("voted_positions", []))
         return v
 
+# --- Core Logic Class ---
+
 class VotingSystem:
-    def __init__(self):
+    def __init__(self, filename="data.json"):
+        self.filename = filename
         self.candidates = {}
         self.voters = {}
-        self.voting_history = []
         self.load_data()
 
-    def log_to_file(self, text):
-        with open("data.txt", "a") as f:
-            f.write(text + "\n")
-
-    def save_object(self, tag, obj_dict):
-        with open("data.txt", "a") as f:
-            f.write(f"{tag}: {obj_dict}\n")
-
     def load_data(self):
-        if not os.path.exists("data.txt"):
+        if not os.path.exists(self.filename):
+            self.save_data() 
             return
-        with open("data.txt", "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("CANDIDATE:"):
-                    data = ast.literal_eval(line.split("CANDIDATE:")[1].strip())
-                    c = Candidate.from_dict(data)
-                    self.candidates[c.candidate_id] = c
-                elif line.startswith("VOTER:"):
-                    data = ast.literal_eval(line.split("VOTER:")[1].strip())
-                    v = Voter.from_dict(data)
-                    self.voters[v.voter_id] = v
-                # (Optional) Load logs or voting_history later
+        try:
+            with open(self.filename, "r") as f:
+                content = f.read()
+                if not content: return
+                data = json.loads(content)
+                self.candidates = {cid: Candidate.from_dict(cdata) for cid, cdata in data.get("candidates", {}).items()}
+                self.voters = {vid: Voter.from_dict(vdata) for vid, vdata in data.get("voters", {}).items()}
+        except (json.JSONDecodeError, FileNotFoundError):
+            self.candidates = {}
+            self.voters = {}
+
+    def save_data(self):
+        data = {
+            "candidates": {cid: c.to_dict() for cid, c in self.candidates.items()},
+            "voters": {vid: v.to_dict() for vid, v in self.voters.items()}
+        }
+        with open(self.filename, "w") as f:
+            json.dump(data, f, indent=4)
 
     def add_candidate(self, candidate_id, name, position):
-        if candidate_id not in self.candidates:
-            c = Candidate(candidate_id, name, position)
-            self.candidates[candidate_id] = c
-            self.log_to_file(f"[{datetime.now()}] Candidate added: {candidate_id}, {name}, {position}")
-            self.save_object("CANDIDATE", c.to_dict())
+        if not all([candidate_id, name, position]):
+            return False, "All candidate fields are required."
+        if candidate_id in self.candidates:
+            return False, "Candidate ID already exists."
+        self.candidates[candidate_id] = Candidate(candidate_id, name, position)
+        self.save_data()
+        return True, "Candidate added successfully."
 
     def add_voter(self, voter_id, name):
-        if voter_id not in self.voters:
-            v = Voter(voter_id, name)
-            self.voters[voter_id] = v
-            self.log_to_file(f"[{datetime.now()}] Voter added: {voter_id}, {name}")
-            self.save_object("VOTER", v.to_dict())
+        if not all([voter_id, name]):
+            return False, "Voter ID and Name are required."
+        if voter_id in self.voters:
+            return False, "Voter ID already exists."
+        self.voters[voter_id] = Voter(voter_id, name)
+        self.save_data()
+        return True, "Voter added successfully."
 
     def cast_vote(self, voter_id, candidate_id):
-        if voter_id in self.voters and candidate_id in self.candidates:
-            cand = self.candidates[candidate_id]
-            vot = self.voters[voter_id]
-            position = cand.position
-            if position not in vot.voted_positions:
-                cand.voters.add(voter_id)
-                cand.vote_count += 1
-                vot.voted_positions.add(position)
-                self.log_to_file(f"[{datetime.now()}] Vote cast: Voter {voter_id} voted for {candidate_id} ({cand.name})")
-                # Overwrite the updated data
-                self.save_object("CANDIDATE", cand.to_dict())
-                self.save_object("VOTER", vot.to_dict())
-            else:
-                self.log_to_file(f"[{datetime.now()}] Duplicate vote blocked for voter {voter_id} on position {position}")
-        else:
-            self.log_to_file(f"[{datetime.now()}] Invalid vote attempt: Voter {voter_id} or Candidate {candidate_id}")
+        if voter_id not in self.voters:
+            return False, "Invalid Voter ID."
+        if candidate_id not in self.candidates:
+            return False, "Invalid Candidate ID."
+        
+        voter = self.voters[voter_id]
+        candidate = self.candidates[candidate_id]
+        
+        if candidate.position in voter.voted_positions:
+            return False, f"You have already voted for the position of {candidate.position}."
+        
+        candidate.vote_count += 1
+        voter.voted_positions.add(candidate.position)
+        self.save_data()
+        return True, f"Vote successfully cast for {candidate.name}."
 
-    def show_results(self):
-        self.log_to_file("\n--- Final Election Results ---")
-        for position in set(c.position for c in self.candidates.values()):
-            self.log_to_file(f"Position: {position}")
-            for cand in self.candidates.values():
-                if cand.position == position:
-                    self.log_to_file(f"  {cand.name} ({cand.candidate_id}) - Votes: {cand.vote_count}")
+    def get_results(self):
+        positions = {}
+        for candidate in self.candidates.values():
+            if candidate.position not in positions:
+                positions[candidate.position] = []
+            positions[candidate.position].append(candidate.to_dict())
+        
+        for position in positions:
+            positions[position] = sorted(positions[position], key=lambda c: c['vote_count'], reverse=True)
+            
+        return positions
 
-if __name__ == "__main__":
-    voting_system = VotingSystem()
+# --- Flask App Setup ---
 
-    print("Existing data loaded from data.txt!")
+app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)
 
-    # Step 1: Add Candidates
-    print("\nStep 1: Add Candidates (type 'done' to finish):")
-    while True:
-        cid = input("Candidate ID: ")
-        if cid.lower() == "done":
-            break
-        name = input("Candidate Name: ")
-        position = input("Candidate Position: ")
-        voting_system.add_candidate(cid, name, position)
+voting_system = VotingSystem(filename="data.json")
 
-    # Step 2: Add Voters
-    print("\nStep 2: Add Voters (type 'done' to finish):")
-    while True:
-        vid = input("Voter ID: ")
-        if vid.lower() == "done":
-            break
-        name = input("Voter Name: ")
-        voting_system.add_voter(vid, name)
+# API endpoint to serve the main HTML file
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
 
-    # Step 3: Cast Votes
-    print("\nStep 3: Cast Votes (type 'done' to finish):")
-    while True:
-        vid = input("Voter ID: ")
-        if vid.lower() == "done":
-            break
-        cid = input("Candidate ID to vote for: ")
-        voting_system.cast_vote(vid, cid)
+@app.route('/api/<path:action>', methods=['POST'])
+def handle_post(action):
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Invalid request format."}), 400
 
-    # Step 4: Show and Save Results
-    print("\nSaving Final Results...")
-    voting_system.show_results()
+    if action == 'add_candidate':
+        success, message = voting_system.add_candidate(data.get('candidate_id'), data.get('name'), data.get('position'))
+    elif action == 'add_voter':
+        success, message = voting_system.add_voter(data.get('voter_id'), data.get('name'))
+    elif action == 'cast_vote':
+        success, message = voting_system.cast_vote(data.get('voter_id'), data.get('candidate_id'))
+    else:
+        return jsonify({"success": False, "message": "Invalid endpoint."}), 404
 
-    print("\n--- All content from data.txt ---\n")
-    with open("data.txt", "r") as f:
-        print(f.read()) 
+    status_code = 200 if success else 400
+    return jsonify({"success": success, "message": message}), status_code
+
+@app.route('/api/results', methods=['GET'])
+def get_results():
+    results = voting_system.get_results()
+    return jsonify(results)
+
+if __name__ == '__main__':
+    # First, install dependencies: pip install Flask Flask-Cors
+    app.run(debug=True, port=5000)
