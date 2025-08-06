@@ -60,7 +60,7 @@ Welcome to the **Online Voting System** repository! This is a robust, secure, an
 
 > (If deployed, add link here)
 >
-> [Live Demo](https://your-demo-link.com)
+> [Live Demo](http://127.0.0.1:5000/)
 
 ---
 
@@ -71,7 +71,7 @@ Welcome to the **Online Voting System** repository! This is a robust, secure, an
   - HTML5 (22.8%)
   - CSS3 (27.6%)
 - **Backend**
-  - *(Specify if using Node.js, Express, PHP, or any backend)*
+  - *(Specify if using Node.js, Express,python, or any backend)*
 - **Database**
   - *(Specify if using MongoDB, MySQL, PostgreSQL, etc.)*
 - **Other Tools**
@@ -91,6 +91,7 @@ Welcome to the **Online Voting System** repository! This is a robust, secure, an
    - Authenticates users and manages session tokens.
    - Handles CRUD operations for elections, candidates, and votes.
    - Enforces business logic (e.g., only one vote per user per election).
+   - using python 
 
 3. **Database**  
    - Stores users, elections, candidates, votes, and logs.
