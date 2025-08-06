@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Voting System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Online Voting System 🗳️</h1>
+    </header>
+
+    <main class="container">
+        <section class="card">
+            <h2>Admin Panel</h2>
+            <div class="form-container">
+                <form id="add-candidate-form">
+                    <h3>Add Candidate</h3>
+                    <input type="text" id="candidate-id" placeholder="Candidate ID (e.g., C1)" required>
+                    <input type="text" id="candidate-name" placeholder="Candidate Name" required>
+                    <input type="text" id="candidate-position" placeholder="Position (e.g., President)" required>
+                    <button type="submit">Add Candidate</button>
+                </form>
+
+                <form id="add-voter-form">
+                    <h3>Add Voter</h3>
+                    <input type="text" id="voter-id" placeholder="Voter ID (e.g., V1)" required>
+                    <input type="text" id="voter-name" placeholder="Voter Name" required>
+                    <button type="submit">Add Voter</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Voting Booth</h2>
+            <form id="cast-vote-form">
+                <input type="text" id="vote-voter-id" placeholder="Enter Your Voter ID" required>
+                <input type="text" id="vote-candidate-id" placeholder="Enter ID of Candidate to Vote For" required>
+                <button type="submit">Cast My Vote</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>Live Election Results</h2>
+            <div id="results-container">
+                <p>Loading results...</p>
+            </div>
+        </section>
+    </main>
+    
+    <footer>
+        <p id="status-message">Ready to receive actions.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
